@@ -11,7 +11,7 @@ RUN useradd -m -s /bin/bash admin && echo 'admin:test123' | chpasswd && adduser 
 RUN mkdir /var/run/sshd
 
 # ---- ttyd Port ----
-EXPOSE 7681
+EXPOSE 10000
 
 # ---- Start-Befehl ----
-CMD ["bash", "-c", "ttyd -p 7681 login"]
+CMD ["bash", "-c", "ttyd -p 10000 login"]
