@@ -1,4 +1,6 @@
-# Verwende Ubuntu 24.04 als Basis
+# ===============================
+# Basisimage
+# ===============================
 FROM ubuntu:24.04
 
 # ===============================
@@ -20,11 +22,12 @@ RUN curl -L https://s3.amazonaws.com/sshx/sshx-x86_64-unknown-linux-musl.tar.gz 
 RUN chmod +x /usr/local/bin/sshx
 
 # ===============================
-# 3. Test: Version überprüfen
+# 3. Optional: Version überprüfen
 # ===============================
 RUN sshx --version
 
 # ===============================
-# 4. Standardbefehl beim Containerstart
+# 4. Container dauerhaft laufen lassen
 # ===============================
-CMD ["bash"]
+# Wir nutzen sshx run, damit der Container aktiv bleibt
+CMD ["sshx", "run"]
