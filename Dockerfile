@@ -9,15 +9,12 @@ RUN apt update && apt install -y \
     bash \
     && rm -rf /var/lib/apt/lists/*
 
-# Download und installieren von sshx
+# Install sshx
 RUN curl -L https://s3.amazonaws.com/sshx/sshx-x86_64-unknown-linux-musl.tar.gz \
-    | tar -xz -C /usr/local/bin
+    | tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/sshx
 
-# executable permissions
-RUN chmod +x /usr/local/bin/sshx
-
-# Port freigeben
+# Öffne Port für Render
 EXPOSE 2222
 
-# Default Command starten sshx auf Port 2222
-CMD ["sshx", "--port", "2222"]
+# Starte sshx und halte Container aktiv
+CMD bash -c "sshx run & tail -f /dev/null"
