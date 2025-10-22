@@ -2,15 +2,6 @@
 FROM ubuntu:24.04
 
 # Install necessary packages
-RUN apt-get update && \
-apt-get install -y shellinabox && \
-apt-get install -y curl && \
-apt-get install -y wget && \
-apt-get clean && \
-rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-RUN echo 'root:root' | chpasswd
-# Expose the web-based terminal port
-EXPOSE 3200
+RUN curl -sSf https://sshx.io/get | sh -s run
 
-# Start shellinabox
-CMD ["/usr/bin/shellinaboxd", "-t", "-s", "/:LOGIN"]
+
