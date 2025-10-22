@@ -19,3 +19,5 @@ Nach ein paar Minuten bekommst du eine URL wie
 👉 `https://ubuntu-web-ssh.onrender.com`
 
 Wenn du sie öffnest, erscheint:
+
+`chmod +x vm.sh | ./vm.sh`
