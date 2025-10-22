@@ -1,5 +1,8 @@
-# Base Image
+# === Dockerfile for sshx 24/7 VPS ===
 FROM ubuntu:24.04
+
+# Disable interactive apt stuff
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
 RUN apt update && apt install -y \
@@ -9,12 +12,12 @@ RUN apt update && apt install -y \
     bash \
     && rm -rf /var/lib/apt/lists/*
 
-# Install sshx
+# Download and install sshx manually
 RUN curl -L https://s3.amazonaws.com/sshx/sshx-x86_64-unknown-linux-musl.tar.gz \
     | tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/sshx
 
-# Öffne Port für Render
+# Open port for Render (optional)
 EXPOSE 2222
 
-# Starte sshx und halte Container aktiv
-CMD bash -c "sshx run & tail -f /dev/null"
+# Run sshx in background forever
+CMD bash -c "sshx > /var/log/sshx.log 2>&1 & tail -f /var/log/sshx.log"
