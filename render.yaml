@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: sshx-vps
+    env: docker
+    disk:
+      name: data
+      mountPath: /data
