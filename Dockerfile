@@ -1,23 +1,26 @@
-# --- Basis Ubuntu 24.04 ---
+# === Basis-Image ===
 FROM ubuntu:24.04
 
-# --- Update + wichtige Tools installieren ---
-RUN apt-get update && apt-get install -y \
-    curl sudo bash coreutils passwd adduser \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+# === System-Setup ===
+RUN apt update && apt install -y \
+    curl sudo adduser openssl ca-certificates && \
+    apt clean
 
-# --- Benutzer "admin" mit sudo hinzufügen ---
+# === Benutzer "admin" mit sudo ===
 RUN useradd -m admin && echo "admin:admin" | chpasswd && usermod -aG sudo admin
 
-# --- sshx installieren ---
+# === sshx installieren ===
 RUN curl -L https://s3.amazonaws.com/sshx/sshx-x86_64-unknown-linux-musl.tar.gz \
     | tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/sshx
 
-# --- Dummy-Port offen halten, damit Render den VPS nicht beendet ---
-RUN echo '#!/bin/bash\nwhile true; do echo "alive"; sleep 60; done' > /fake_server.sh && chmod +x /fake_server.sh
+# === Fake-Webserver (für Render-Port-Erkennung) + sshx Start ===
+RUN echo '#!/bin/bash\n\
+(while true; do echo "alive"; sleep 60; done) &\n\
+/usr/local/bin/sshx run &\n\
+python3 -m http.server 8080\n' > /start.sh && chmod +x /start.sh
 
-# --- Startbefehl: startet sshx + Dummyserver ---
-CMD bash -c "/usr/local/bin/sshx | tee /var/log/sshx.log & /fake_server.sh"
+# === Startbefehl ===
+CMD ["/bin/bash", "/start.sh"]
 
-# --- Fake-Port, damit Render den Service als "aktiv" erkennt ---
+# === Port freigeben ===
 EXPOSE 8080
