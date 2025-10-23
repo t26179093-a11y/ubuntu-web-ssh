@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: ubuntu-web-ssh
+    name: ssh-ubuntu
     env: docker
     plan: starter
     disk:
-      name: vps-storage
+      name: ssh-storage
       mountPath: /data
     autoDeploy: false
