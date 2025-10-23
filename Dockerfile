@@ -1,35 +1,22 @@
-# Base: Ubuntu 24.04 mit sudo, curl, Docker-Kompatibilität
+# --- Basis Ubuntu 24.04 ---
 FROM ubuntu:24.04
 
-ENV DEBIAN_FRONTEND=noninteractive
+# --- Vorbereitung & Update ---
+RUN apt-get update && apt-get install -y curl sudo bash coreutils && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install basics
-RUN apt update && apt install -y \
-    sudo \
-    curl \
-    wget \
-    tar \
-    bash \
-    iproute2 \
-    ca-certificates \
-    apt-transport-https \
-    gnupg \
-    software-properties-common \
-    && rm -rf /var/lib/apt/lists/*
-
-# Add a sudo user (optional, du kannst auch direkt root nutzen)
+# --- Benutzer "admin" mit sudo ---
 RUN useradd -m admin && echo "admin:admin" | chpasswd && adduser admin sudo
 
-# Install sshx (for terminal access)
+# --- sshx installieren ---
 RUN curl -L https://s3.amazonaws.com/sshx/sshx-x86_64-unknown-linux-musl.tar.gz \
     | tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/sshx
 
-# Ports für sshx
-EXPOSE 2222
+# --- Dummy-Port offen halten, damit Render den VPS nicht stoppt ---
+RUN echo '#!/bin/bash\nwhile true; do echo "alive"; sleep 60; done' > /fake_server.sh && chmod +x /fake_server.sh
 
-# Start sshx + bleibe online
-CMD bash -c "mkdir -p /var/log && \
-             /usr/local/bin/sshx > /var/log/sshx.log 2>&1 & \
-             echo 'Container läuft mit Root + sudo' && \
-             echo 'Log: /var/log/sshx.log' && \
-             tail -n +1 -F /var/log/sshx.log"
+# --- Startscript: startet sshx + Dummyserver ---
+CMD bash -c "/usr/local/bin/sshx | tee /var/log/sshx.log & /fake_server.sh"
+
+# --- Fake-Port, damit Render den Service als "aktiv" erkennt ---
+EXPOSE 8080
