@@ -23,3 +23,5 @@ Wenn du sie öffnest, erscheint:
 `chmod +x vm.sh | ./vm.sh`
 
 `sudo apt update && sudo apt install -y qemu-kvm qemu-utils cloud-image-utils`
+`apt update -y
+apt install -y qemu-system-x86 cloud-image-utils wget curl`
