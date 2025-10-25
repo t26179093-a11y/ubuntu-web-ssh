@@ -21,3 +21,5 @@ Nach ein paar Minuten bekommst du eine URL wie
 Wenn du sie öffnest, erscheint:
 
 `chmod +x vm.sh | ./vm.sh`
+
+`sudo apt update && sudo apt install -y qemu-kvm qemu-utils cloud-image-utils`
