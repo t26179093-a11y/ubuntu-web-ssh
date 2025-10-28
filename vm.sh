@@ -1,8 +1,8 @@
 #!/bin/bash
 # ==========================================
-# 🧠 All-in-One VM Manager (QEMU + sshx.io)
-# Unterstützt Ubuntu 22.04 / 24.04, Debian 11–13
-# Optimiert für Container ohne KVM
+# ⚡ Fast VM Manager optimized for containers
+# Supports Ubuntu 22.04/24.04, Debian 11–13
+# Runs fast in containers, Web-Terminal ready (sshx.io)
 # ==========================================
 BASE_DIR="/root/vms"
 mkdir -p "$BASE_DIR"
@@ -11,7 +11,7 @@ mkdir -p "$BASE_DIR"
 # VM erstellen
 # -----------------------------
 create_vm() {
-  echo -n "VM-Name (klein, keine Leerzeichen): "
+  echo -n "VM-Name: "
   read VM_NAME
   mkdir -p "$BASE_DIR/$VM_NAME"
 
@@ -32,21 +32,19 @@ create_vm() {
     *) echo "Ungültige Auswahl"; exit 1 ;;
   esac
 
-  read -p "RAM in MB (default 2048): " RAM
-  RAM=${RAM:-2048}
+  read -p "RAM in MB (default 4096): " RAM
+  RAM=${RAM:-4096}
   read -p "CPU-Kerne (default 2): " CPU
   CPU=${CPU:-2}
   read -p "Disk Größe in GB (default 20): " DISK
   DISK=${DISK:-20}
-  read -p "Extra Disk Größe in GB (0 = keine): " EXTRA
-  EXTRA=${EXTRA:-0}
   read -p "Root-Passwort (default test123): " PASSWD
   PASSWD=${PASSWD:-test123}
 
   echo "📥 Lade Image..."
   wget -q -O "$BASE_DIR/$VM_NAME/$VM_NAME.img" "$IMG_URL"
 
-  echo "📦 Erweitere Image auf ${DISK}G..."
+  echo "📦 Resize Image auf ${DISK}G..."
   qemu-img resize "$BASE_DIR/$VM_NAME/$VM_NAME.img" ${DISK}G
 
   echo "⚙️ Erstelle Cloud-Init..."
@@ -69,15 +67,10 @@ EOF
   echo "instance-id: iid-$VM_NAME" > "$BASE_DIR/$VM_NAME/meta-data"
   cloud-localds "$BASE_DIR/$VM_NAME/seed.img" "$BASE_DIR/$VM_NAME/user-data" "$BASE_DIR/$VM_NAME/meta-data"
 
-  if [ "$EXTRA" -gt 0 ]; then
-    echo "Erstelle extra.img (${EXTRA}G)..."
-    qemu-img create -f qcow2 "$BASE_DIR/$VM_NAME/extra.img" ${EXTRA}G
-  fi
-
   echo "RAM=$RAM" > "$BASE_DIR/$VM_NAME/config.txt"
   echo "CPU=$CPU" >> "$BASE_DIR/$VM_NAME/config.txt"
 
-  echo "✅ VM '$VM_NAME' erstellt. Start: ./vm.sh start $VM_NAME --web"
+  echo "✅ VM '$VM_NAME' erstellt."
 }
 
 # -----------------------------
@@ -97,20 +90,18 @@ start_vm() {
   CPU=$(grep CPU "$VM_DIR/config.txt" | cut -d= -f2)
   IMG="$VM_DIR/$VM_NAME.img"
   SEED="$VM_DIR/seed.img"
-  EXTRA_IMG="$VM_DIR/extra.img"
 
+  KVM_OPT=""
   if [ -e /dev/kvm ]; then
     KVM_OPT="-enable-kvm"
     echo "✅ KVM verfügbar"
   else
-    KVM_OPT=""
     echo "⚠️ KVM nicht verfügbar, Software-Emulation aktiv"
   fi
 
   CMD="qemu-system-x86_64 -m $RAM -smp $CPU $KVM_OPT \
     -drive file=$IMG,if=virtio,cache=writeback,aio=threads \
     -drive file=$SEED,if=virtio,format=raw \
-    $( [ -f $EXTRA_IMG ] && echo "-drive file=$EXTRA_IMG,if=virtio,format=qcow2" ) \
     -boot c -nographic -serial mon:stdio -netdev user,id=n1,hostfwd=tcp::2222-:22 -device virtio-net,netdev=n1"
 
   if [ "$MODE" == "--web" ]; then
@@ -187,14 +178,10 @@ info_vm() {
   echo "   RAM: ${RAM}MB"
   echo "   CPU: $CPU"
   echo "   Haupt-Disk: $DISK"
-  if [ -f "$VM_DIR/extra.img" ]; then
-    EXTRA_DISK=$(qemu-img info "$VM_DIR/extra.img" | grep "virtual size" | awk '{print $3}')
-    echo "   Extra-Disk: $EXTRA_DISK"
-  fi
 }
 
 # -----------------------------
-# Befehl auswerten
+# Main
 # -----------------------------
 case "$1" in
   create) create_vm ;;
@@ -205,4 +192,3 @@ case "$1" in
   list) list_vms ;;
   info) info_vm "$2" ;;
   *) echo "Verwendung: ./vm.sh {create|start|stop|restart|delete|list|info}" ;;
-esac
