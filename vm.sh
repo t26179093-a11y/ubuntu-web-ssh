@@ -1,12 +1,15 @@
 #!/bin/bash
 # ==========================================
 # 🧠 All-in-One VM Manager (QEMU + sshx.io)
+# Unterstützt Ubuntu 22.04 / 24.04, Debian 11–13
+# Optimiert für Container ohne KVM
 # ==========================================
-# Unterstützt Ubuntu 22.04 / 24.04 / Debian 11–13
-
 BASE_DIR="/root/vms"
 mkdir -p "$BASE_DIR"
 
+# -----------------------------
+# VM erstellen
+# -----------------------------
 create_vm() {
   echo -n "VM-Name (klein, keine Leerzeichen): "
   read VM_NAME
@@ -40,13 +43,13 @@ create_vm() {
   read -p "Root-Passwort (default test123): " PASSWD
   PASSWD=${PASSWD:-test123}
 
-  echo "Lade OS-Image herunter..."
-  wget -O "$BASE_DIR/$VM_NAME/$VM_NAME.img" "$IMG_URL"
+  echo "📥 Lade Image..."
+  wget -q -O "$BASE_DIR/$VM_NAME/$VM_NAME.img" "$IMG_URL"
 
-  echo "Erweitere Image auf ${DISK}G ..."
+  echo "📦 Erweitere Image auf ${DISK}G..."
   qemu-img resize "$BASE_DIR/$VM_NAME/$VM_NAME.img" ${DISK}G
 
-  echo "Erstelle Cloud-Init Konfiguration..."
+  echo "⚙️ Erstelle Cloud-Init..."
   cat > "$BASE_DIR/$VM_NAME/user-data" <<EOF
 #cloud-config
 hostname: $VM_NAME
@@ -59,12 +62,11 @@ users:
 ssh_pwauth: true
 chpasswd:
   list: |
-     root:$PASSWD
+    root:$PASSWD
   expire: False
 EOF
 
   echo "instance-id: iid-$VM_NAME" > "$BASE_DIR/$VM_NAME/meta-data"
-
   cloud-localds "$BASE_DIR/$VM_NAME/seed.img" "$BASE_DIR/$VM_NAME/user-data" "$BASE_DIR/$VM_NAME/meta-data"
 
   if [ "$EXTRA" -gt 0 ]; then
@@ -75,10 +77,12 @@ EOF
   echo "RAM=$RAM" > "$BASE_DIR/$VM_NAME/config.txt"
   echo "CPU=$CPU" >> "$BASE_DIR/$VM_NAME/config.txt"
 
-  echo "✅ VM '$VM_NAME' erstellt."
-  echo "Start mit: ./vm.sh start $VM_NAME"
+  echo "✅ VM '$VM_NAME' erstellt. Start: ./vm.sh start $VM_NAME --web"
 }
 
+# -----------------------------
+# VM starten
+# -----------------------------
 start_vm() {
   VM_NAME="$1"
   MODE="$2"
@@ -91,39 +95,36 @@ start_vm() {
 
   RAM=$(grep RAM "$VM_DIR/config.txt" | cut -d= -f2)
   CPU=$(grep CPU "$VM_DIR/config.txt" | cut -d= -f2)
-  IMG_FILE="$VM_DIR/$VM_NAME.img"
-  SEED_FILE="$VM_DIR/seed.img"
-  EXTRA_FILE="$VM_DIR/extra.img"
+  IMG="$VM_DIR/$VM_NAME.img"
+  SEED="$VM_DIR/seed.img"
+  EXTRA_IMG="$VM_DIR/extra.img"
 
   if [ -e /dev/kvm ]; then
     KVM_OPT="-enable-kvm"
+    echo "✅ KVM verfügbar"
   else
-    echo "⚠️ KVM nicht verfügbar - läuft software-emuliert."
     KVM_OPT=""
+    echo "⚠️ KVM nicht verfügbar, Software-Emulation aktiv"
   fi
 
-  echo "Starte VM '$VM_NAME' mit $CPU CPU(s), $RAM MB RAM ..."
-
-  CMD="qemu-system-x86_64 \
-    -m $RAM \
-    -smp $CPU \
-    $KVM_OPT \
-    -drive file=$IMG_FILE,if=virtio,format=raw,cache=writeback,aio=threads \
-    -drive file=$SEED_FILE,if=virtio,format=raw \
-    $( [ -f $EXTRA_FILE ] && echo "-drive file=$EXTRA_FILE,if=virtio,format=qcow2" ) \
-    -boot c \
-    -nographic \
-    -serial mon:stdio"
+  CMD="qemu-system-x86_64 -m $RAM -smp $CPU $KVM_OPT \
+    -drive file=$IMG,if=virtio,cache=writeback,aio=threads \
+    -drive file=$SEED,if=virtio,format=raw \
+    $( [ -f $EXTRA_IMG ] && echo "-drive file=$EXTRA_IMG,if=virtio,format=qcow2" ) \
+    -boot c -nographic -serial mon:stdio -netdev user,id=n1,hostfwd=tcp::2222-:22 -device virtio-net,netdev=n1"
 
   if [ "$MODE" == "--web" ]; then
-    echo "🌐 Starte sshx.io Web-Terminal..."
+    echo "🌐 Starte VM im sshx.io Web-Terminal..."
     curl -fsSL https://sshx.io/get | sh -s -- bash -c "$CMD"
   else
-    echo "💻 Interaktiver Modus – (STRG + A dann X zum Beenden)"
+    echo "💻 Interaktive Konsole..."
     eval "$CMD"
   fi
 }
 
+# -----------------------------
+# VM stoppen
+# -----------------------------
 stop_vm() {
   VM_NAME="$1"
   PID_FILE="$BASE_DIR/$VM_NAME/vm.pid"
@@ -136,6 +137,19 @@ stop_vm() {
   fi
 }
 
+# -----------------------------
+# VM neu starten
+# -----------------------------
+restart_vm() {
+  VM_NAME="$1"
+  stop_vm "$VM_NAME"
+  sleep 2
+  start_vm "$VM_NAME" "--web"
+}
+
+# -----------------------------
+# VM löschen
+# -----------------------------
 delete_vm() {
   VM_NAME="$1"
   read -p "⚠️ VM '$VM_NAME' wirklich löschen? (y/N): " CONFIRM
@@ -147,16 +161,48 @@ delete_vm() {
   fi
 }
 
+# -----------------------------
+# Alle VMs auflisten
+# -----------------------------
 list_vms() {
   echo "📦 Verfügbare VMs:"
   ls "$BASE_DIR"
 }
 
+# -----------------------------
+# VM-Info anzeigen
+# -----------------------------
+info_vm() {
+  VM_NAME="$1"
+  VM_DIR="$BASE_DIR/$VM_NAME"
+  if [ ! -d "$VM_DIR" ]; then
+    echo "❌ VM '$VM_NAME' existiert nicht."
+    exit 1
+  fi
+
+  RAM=$(grep RAM "$VM_DIR/config.txt" | cut -d= -f2)
+  CPU=$(grep CPU "$VM_DIR/config.txt" | cut -d= -f2)
+  DISK=$(qemu-img info "$VM_DIR/$VM_NAME.img" | grep "virtual size" | awk '{print $3}')
+  echo "ℹ️ VM '$VM_NAME' Info:"
+  echo "   RAM: ${RAM}MB"
+  echo "   CPU: $CPU"
+  echo "   Haupt-Disk: $DISK"
+  if [ -f "$VM_DIR/extra.img" ]; then
+    EXTRA_DISK=$(qemu-img info "$VM_DIR/extra.img" | grep "virtual size" | awk '{print $3}')
+    echo "   Extra-Disk: $EXTRA_DISK"
+  fi
+}
+
+# -----------------------------
+# Befehl auswerten
+# -----------------------------
 case "$1" in
   create) create_vm ;;
   start) start_vm "$2" "$3" ;;
   stop) stop_vm "$2" ;;
+  restart) restart_vm "$2" ;;
   delete) delete_vm "$2" ;;
   list) list_vms ;;
-  *) echo "Verwendung: ./vm.sh {create|start|stop|delete|list}" ;;
+  info) info_vm "$2" ;;
+  *) echo "Verwendung: ./vm.sh {create|start|stop|restart|delete|list|info}" ;;
 esac
